@@ -1,0 +1,23 @@
+{
+  "name": "connect-aoss-setup-function",
+  "version": "1.0.0",
+  "description": "npm i aws-sdk\r npm i aws4\r npm i @opensearch-project/opensearch",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT-0",
+  "dependencies": {
+    "@aws-sdk/client-cloudwatch": "^3.363.0",
+    "@aws-sdk/client-connect": "^3.332.0",
+    "@aws-sdk/client-opensearchserverless": "^3.264.0",
+    "@aws-sdk/credential-provider-node": "^3.266.1",
+    "@opensearch-project/opensearch": "^2.2.0",
+    "aws-sdk": "^2.1309.0",
+    "aws4": "^1.12.0",
+    "cfn-response": "^1.0.1",
+    "date-and-time": "^3.0.0",
+    "uuid": "^9.0.0"
+  }
+}
