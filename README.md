@@ -30,7 +30,7 @@ Amazon OpenSearch can ingest other data such as human resources information like
 ## Walkthrough
 
 1.  Download the content in the "source-code" [here](source-code/). folder.
-2.  Run "npm audit"
+2.  Run "npm install"
 3.  Zip the content after step 2 and name the zip source-code.zip
 4.	Create a S3 solution bucket in your AWS account.
 5.	Place the source-code.zip file (step 3) in the solution bucket (step 4)
@@ -43,10 +43,10 @@ Amazon OpenSearch can ingest other data such as human resources information like
 
 8. Once the CFT execution is successful. Create users credentials to access the OpenSearch dashboard </br> ![IAM User](diagram/iam-user.png?raw=true)
 9. Enable Console Access and set the password, Click Apply </br></br> ![IAM User credential configuration](diagram/iam-user-crednetial-select.png?raw=true)
-10. Download the credntial file for future ref. </br></br> ![IAM User credential download](diagram/iam-user-crednetial-download.png?raw=true)
+10. Download the credential file for future ref. </br></br> ![IAM User credential download](diagram/iam-user-crednetial-download.png?raw=true)
 11. Get the OpenSeach console URL under the CloudFormation stack's Outputs tab. </br> ![OpenSearch Console URL](diagram/cft-output-tab.png?raw=true)
-12. Download the OpenSearch dashboard located [here](opensearch-import/riteshcy-aoss-export.ndjson)
-13. Open the OpenSearch dashboard in the another browser session and login with the credntial generate in step 9
+12. Download the OpenSearch dashboard located [here](opensearch-import/aoss-export.ndjson)
+13. Open the OpenSearch dashboard in the another browser session and login with the credential generate in step 9
 14. Click on the OpenSearch Stack management </br> ![OpenSearch Stack management](diagram/os-stack-management.png?raw=true)
 15. Import the OpenSeach file (downloaded in step 12) </br> ![OpenSearch import](diagram/os-import.png?raw=true)
 16. Click on Done </br> ![OpenSearch import](diagram/os-import-done.png?raw=true)
@@ -57,7 +57,6 @@ Amazon OpenSearch can ingest other data such as human resources information like
 Log in to your Amazon Connect instance.
 1. Open the CCP and update the Agent status
 2. Place test call to reach to the Agent
-3. Place calls with Contact lens turned on
 
 ## Visualize in Amazon OpenSearch
 
@@ -68,8 +67,7 @@ Below is the Amazon OpenSearch Dashboard screesnhot with Amazon Connect data.
 In order to remove the resources created by the stack, perform the following steps:
 
 * Delete the CloudFormation template.
-* Delete the objects and the S3 bucket created from the CloudFormation template. The Bucket name should contain the project name.
-* Delete the Glue database created from the CloudFormation template.
+* Delete the objects and the S3 bucket created as part of Step 4.
 
 ## Conclusion
 In conclusion, the architecture outlined above enables real-time processing of Amazon Connect Contact Center data through the use of AWS Lambda, Amazon Kinesis Data Streams and Amazon OpenSearch. Amazon OpenSearch Serverless provides several benefits over a cluster, including reduced complexity in managing clusters and capacity, cost-effectiveness, and the ability to ingest other data such as human resources information for comprehensive reporting. This allows businesses to efficiently manage and analyze their contact center data, leading to improved performance and customer satisfaction.
