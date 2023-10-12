@@ -41,16 +41,17 @@ Amazon OpenSearch can ingest other data such as human resources information like
 
 ![CloudFormation Template Screenshot](diagram/cft-screenshot.png?raw=true)
 
-8. Once the CFT execution is successful. Create users credentials to access the OpenSearch dashboard </br> ![IAM User](diagram/iam-user.png?raw=true)
-9. Enable Console Access and set the password, Click Apply </br></br> ![IAM User credential configuration](diagram/iam-user-crednetial-select.png?raw=true)
-10. Download the credential file for future ref. </br></br> ![IAM User credential download](diagram/iam-user-crednetial-download.png?raw=true)
-11. Get the OpenSeach console URL under the CloudFormation stack's Outputs tab. </br> ![OpenSearch Console URL](diagram/cft-output-tab.png?raw=true)
-12. Download the OpenSearch dashboard located [here](opensearch-import/aoss-export.ndjson)
-13. Open the OpenSearch dashboard in the another browser session and login with the credential generate in step 9
-14. Click on the OpenSearch Stack management </br> ![OpenSearch Stack management](diagram/os-stack-management.png?raw=true)
-15. Import the OpenSeach file (downloaded in step 12) </br> ![OpenSearch import](diagram/os-import.png?raw=true)
-16. Click on Done </br> ![OpenSearch import](diagram/os-import-done.png?raw=true)
-17. Navigate to the OpenSeach Dashboard </br> ![OpenSearch Dashboard](diagram/os-dashboard.png?raw=true)
+8. Once the CFT execution is successful. Enable Data streaming in Amazon Connect and associate the Agent Events with Kinesis stream created by this solution. </br> ![CloudFormation Template Screenshot](diagram/agent-event-stream.png?raw=true)
+9. Create users credentials to access the OpenSearch dashboard </br> ![IAM User](diagram/iam-user.png?raw=true)
+10. Enable Console Access and set the password, Click Apply </br></br> ![IAM User credential configuration](diagram/iam-user-crednetial-select.png?raw=true)
+11. Download the credential file for future ref. </br></br> ![IAM User credential download](diagram/iam-user-crednetial-download.png?raw=true)
+12. Get the OpenSeach console URL under the CloudFormation stack's Outputs tab. </br> ![OpenSearch Console URL](diagram/cft-output-tab.png?raw=true)
+13. Download the OpenSearch dashboard located [here](opensearch-import/aoss-export.ndjson)
+14. Open the OpenSearch dashboard in the another browser session and login with the credential generate in step 10
+15. Click on the OpenSearch Stack management </br> ![OpenSearch Stack management](diagram/os-stack-management.png?raw=true)
+16. Import the OpenSeach file (downloaded in step 13) </br> ![OpenSearch import](diagram/os-import.png?raw=true)
+17. Click on Done </br> ![OpenSearch import](diagram/os-import-done.png?raw=true)
+18. Navigate to the OpenSeach Dashboard </br> ![OpenSearch Dashboard](diagram/os-dashboard.png?raw=true)
 
 ## Steps to test
 

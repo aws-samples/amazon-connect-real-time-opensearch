@@ -234,19 +234,6 @@ Resources:
           Id: FirehoseDelivery
           RoleArn: !GetAtt EventBusRoleForFirehosePut.Arn
       EventBusName: default
-  ConnectCasesEventsRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: "Forward all AWS Cases service events from default event bus to Kinesis Data Firehose"
-      State: ENABLED
-      EventPattern:
-        source:
-          - aws.cases
-      Targets:
-        - Arn: !GetAtt AmznConnectCasesEventDeliveryStream.Arn
-          Id: FirehoseDelivery
-          RoleArn: !GetAtt EventBusRoleForFirehosePut.Arn
-      EventBusName: default
   EventBusRoleForFirehosePut:
     Type: AWS::IAM::Role
     Properties:
@@ -270,7 +257,6 @@ Resources:
                   - firehose:PutRecordBatch
                 Resource: 
                   - !GetAtt "AmznConnectEventDeliveryStream.Arn"
-                  - !GetAtt "AmznConnectCasesEventDeliveryStream.Arn"
 
 #######################
 # S3 Bucket 
@@ -290,40 +276,6 @@ Resources:
 #######################
 # KINESIS STREAM, FIREHOSE 
 #######################
-  AmznConnectCasesEventDeliveryStream:
-    Properties:
-      DeliveryStreamType: DirectPut
-      AmazonOpenSearchServerlessDestinationConfiguration:
-        BufferingHints:
-          IntervalInSeconds: 60
-          SizeInMBs: 1
-        IndexName: cases-event-stream-v1
-        RetryOptions:
-          DurationInSeconds: 100
-        RoleARN:
-          Fn::GetAtt:
-          - FirehoseRole
-          - Arn
-        S3BackupMode: AllDocuments
-        S3Configuration:
-          BucketARN:
-            Fn::GetAtt:
-            - AmznConnectOutputBucket
-            - Arn
-          BufferingHints:
-            IntervalInSeconds: 60
-            SizeInMBs: 1
-          CompressionFormat: GZIP
-          Prefix: cases-firehose-output/
-          RoleARN:
-            Fn::GetAtt:
-            - FirehoseRole
-            - Arn
-        CollectionEndpoint: 
-            Fn::GetAtt:
-            - Collection
-            - CollectionEndpoint
-    Type: AWS::KinesisFirehose::DeliveryStream
   AmznConnectEventDeliveryStream:
     Properties:
       DeliveryStreamType: DirectPut
@@ -332,40 +284,6 @@ Resources:
           IntervalInSeconds: 60
           SizeInMBs: 1
         IndexName: contact-event-stream-
-        RetryOptions:
-          DurationInSeconds: 100
-        RoleARN:
-          Fn::GetAtt:
-          - FirehoseRole
-          - Arn
-        S3BackupMode: AllDocuments
-        S3Configuration:
-          BucketARN:
-            Fn::GetAtt:
-            - AmznConnectOutputBucket
-            - Arn
-          BufferingHints:
-            IntervalInSeconds: 60
-            SizeInMBs: 1
-          CompressionFormat: GZIP
-          Prefix: ctr-firehose-output/
-          RoleARN:
-            Fn::GetAtt:
-            - FirehoseRole
-            - Arn
-        CollectionEndpoint: 
-            Fn::GetAtt:
-            - Collection
-            - CollectionEndpoint
-    Type: AWS::KinesisFirehose::DeliveryStream
-  AmznConnectCtrDeliveryStream:
-    Properties:
-      DeliveryStreamType: DirectPut
-      AmazonOpenSearchServerlessDestinationConfiguration:
-        BufferingHints:
-          IntervalInSeconds: 60
-          SizeInMBs: 1
-        IndexName: ctr-logs
         RetryOptions:
           DurationInSeconds: 100
         RoleARN:
