@@ -1,0 +1,495 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'Amazon OpenSearch Serverless template to create an IAM user, encryption policy, data access policy and collection'
+Parameters:
+  SolutionSourceBucket:
+    Type: String
+    Description: Source Bucket Name
+  ConnectInstanceId:
+    Type: String
+    Default: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+    Description: Connect Instance Id only
+
+#######################
+# RESOURCES
+#######################
+Resources:
+#######################
+# OpenSearch Serverless
+#######################
+  NetworkPolicy:
+    Type: 'AWS::OpenSearchServerless::SecurityPolicy'
+    Properties:
+      Name: !Sub '${AWS::StackName}-npol'
+      Type: network
+      Description: Network policy for aoss-connect collection
+      Policy: >-
+        [{"Rules":[{"ResourceType":"collection","Resource":["collection/connect"]}, {"ResourceType":"dashboard","Resource":["collection/connect"]}],"AllowFromPublic":true}]
+  EncryptionPolicy:
+    Type: 'AWS::OpenSearchServerless::SecurityPolicy'
+    Properties:
+      Name: !Sub '${AWS::StackName}-spol'
+      Type: encryption
+      Description: Encryption policy for aoss-connect collection
+      Policy: >-
+        {"Rules":[{"ResourceType":"collection","Resource":["collection/connect"]}],"AWSOwnedKey":true}
+  Collection:
+    Type: 'AWS::OpenSearchServerless::Collection'
+    Properties:
+      Name: connect
+      Type: SEARCH
+      Description: Collection to holds SEARCH data
+    DependsOn: EncryptionPolicy
+
+#######################
+# SOlution - CFT Function
+#######################
+  SolutionLambdaIamRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      RoleName : !Sub '${AWS::StackName}--solutionLambdaIamRole'
+      Policies:
+        - PolicyName: logs
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+        ### Required to be * , for the resource action - CreateAccessPolicy, DeleteAccessPolicy, BatchGetCollection
+        - PolicyName: aoss
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'aoss:CreateAccessPolicy'
+                  - 'aoss:DeleteAccessPolicy'
+                  - 'aoss:UpdateAccessPolicy'
+                  - 'aoss:BatchGetCollection'
+                  - 'aoss:APIAccessAll'
+                Resource: '*'
+        ### Required to be * , for the resource action
+        - PolicyName: cloudwatch
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:GetMetricData'
+                Resource: '*'
+        - PolicyName: connect
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'connect:ListQueues'
+                  - 'connect:ListRoutingProfiles'
+                  - 'connect:GetMetricData'
+                  - 'connect:GetMetricDataV2'
+                  - 'connect:GetCurrentMetricData'
+                  - 'connect:ListInstanceStorageConfigs'
+                  - 'connect:AssociateInstanceStorageConfig'
+                  - 'connect:DisassociateInstanceStorageConfig'
+                Resource: 
+                  - !Sub 'arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}'
+                  - !Sub 'arn:aws:connect:${AWS::Region}:${AWS::AccountId}:instance/${ConnectInstanceId}/*'
+      Path: /
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  SolutionLambdaSourceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Timeout: 900
+      FunctionName: !Sub '${AWS::StackName}-SolutionLambdaSourceFunction'
+      Role: !GetAtt SolutionLambdaIamRole.Arn
+      CodeUri: 
+        Bucket: !Ref SolutionSourceBucket
+        Key: source-code.zip
+      Handler: configuration/aossSetupConfiguration.handler
+      Runtime: nodejs16.x
+  SolutionLambdaTrigger:
+    Type: 'Custom::SolutionLambdaTrigger'
+    DependsOn: Collection
+    Properties:
+      CollectionName: connect
+      ServiceToken: !GetAtt SolutionLambdaSourceFunction.Arn
+      RequestToken: ${ClientRequestToken}
+      AccountNumber: !Sub ${AWS::AccountId}
+      Username: !Ref IAMUSer  
+      FirehoseRole: !Ref FirehoseRole
+      LambdaRole: !Ref SolutionLambdaIamRole
+
+#######################
+# USER
+#######################
+  IAMUSer:
+    Type: 'AWS::IAM::User'
+    Properties:
+      UserName: aossReadOnly
+      Groups:
+        - !Ref AossReadOnlyUserGroup
+
+  AossReadOnlyUserGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      Policies:
+        - PolicyName: AossReadOnlyUserGroup
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              ### Required to be * , for the resource action ListAccessPolicies
+              - Effect: Allow
+                Action:
+                  - aoss:APIAccessAll
+                  - aoss:ListAccessPolicies
+                  - aoss:ListCollections
+                  - aoss:ListSecurityPolicies
+                  - aoss:ListTagsForResource
+                  - aoss:BatchGetCollection
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - aoss:DashboardsAccessAll
+                Resource:
+                  !Sub 'arn:aws:aoss:${AWS::Region}:${AWS::AccountId}:dashboards/default'
+
+#######################
+# ROLE
+#######################
+  FirehoseRole:
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId:
+                Ref: AWS::AccountId
+          Effect: Allow
+          Principal:
+            Service:
+            - firehose.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+      - PolicyDocument:
+          Statement:
+          - Action:
+            - s3:AbortMultipartUpload
+            - s3:GetBucketLocation
+            - s3:GetObject
+            - s3:ListBucket
+            - s3:ListBucketMultipartUploads
+            - s3:PutObject
+            Effect: Allow
+            Resource: 
+              - !GetAtt "AmznConnectOutputBucket.Arn"            
+          - Action:
+            - kinesis:DescribeStream
+            - kinesis:GetShardIterator
+            - kinesis:GetRecords
+            - kinesis:ListShards
+            Effect: Allow
+            Resource: 
+              - !GetAtt "AgentKinesisStream.Arn"            
+          ### Required to be * , for the resource action - BatchGetCollection
+          - Action:
+              - 'aoss:BatchGetCollection'
+              - 'aoss:APIAccessAll'
+            Effect: Allow
+            Resource: '*'
+
+
+          Version: 2012-10-17
+        PolicyName: firehoseRolePolicy
+    Type: AWS::IAM::Role
+
+#######################
+# EVENT Rule
+#######################
+  ConnectEventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Forward all AWS service events from default event bus to Kinesis Data Firehose"
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.connect
+      Targets:
+        - Arn: !GetAtt AmznConnectEventDeliveryStream.Arn
+          Id: FirehoseDelivery
+          RoleArn: !GetAtt EventBusRoleForFirehosePut.Arn
+      EventBusName: default
+  ConnectCasesEventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Forward all AWS Cases service events from default event bus to Kinesis Data Firehose"
+      State: ENABLED
+      EventPattern:
+        source:
+          - aws.cases
+      Targets:
+        - Arn: !GetAtt AmznConnectCasesEventDeliveryStream.Arn
+          Id: FirehoseDelivery
+          RoleArn: !GetAtt EventBusRoleForFirehosePut.Arn
+      EventBusName: default
+  EventBusRoleForFirehosePut:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: FirehosePut
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action:
+                  - firehose:PutRecord
+                  - firehose:PutRecordBatch
+                Resource: 
+                  - !GetAtt "AmznConnectEventDeliveryStream.Arn"
+                  - !GetAtt "AmznConnectCasesEventDeliveryStream.Arn"
+
+#######################
+# S3 Bucket 
+#######################
+  AmznConnectOutputBucket:
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+        - ExpirationInDays: 180
+          Id: Move data to Glacier after 30 days and delete after 180 days.
+          Status: Enabled
+          Transitions:
+          - StorageClass: Glacier
+            TransitionInDays: 30
+    Type: AWS::S3::Bucket
+
+#######################
+# KINESIS STREAM, FIREHOSE 
+#######################
+  AmznConnectCasesEventDeliveryStream:
+    Properties:
+      DeliveryStreamType: DirectPut
+      AmazonOpenSearchServerlessDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        IndexName: cases-event-stream-v1
+        RetryOptions:
+          DurationInSeconds: 100
+        RoleARN:
+          Fn::GetAtt:
+          - FirehoseRole
+          - Arn
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN:
+            Fn::GetAtt:
+            - AmznConnectOutputBucket
+            - Arn
+          BufferingHints:
+            IntervalInSeconds: 60
+            SizeInMBs: 1
+          CompressionFormat: GZIP
+          Prefix: cases-firehose-output/
+          RoleARN:
+            Fn::GetAtt:
+            - FirehoseRole
+            - Arn
+        CollectionEndpoint: 
+            Fn::GetAtt:
+            - Collection
+            - CollectionEndpoint
+    Type: AWS::KinesisFirehose::DeliveryStream
+  AmznConnectEventDeliveryStream:
+    Properties:
+      DeliveryStreamType: DirectPut
+      AmazonOpenSearchServerlessDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        IndexName: contact-event-stream-
+        RetryOptions:
+          DurationInSeconds: 100
+        RoleARN:
+          Fn::GetAtt:
+          - FirehoseRole
+          - Arn
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN:
+            Fn::GetAtt:
+            - AmznConnectOutputBucket
+            - Arn
+          BufferingHints:
+            IntervalInSeconds: 60
+            SizeInMBs: 1
+          CompressionFormat: GZIP
+          Prefix: ctr-firehose-output/
+          RoleARN:
+            Fn::GetAtt:
+            - FirehoseRole
+            - Arn
+        CollectionEndpoint: 
+            Fn::GetAtt:
+            - Collection
+            - CollectionEndpoint
+    Type: AWS::KinesisFirehose::DeliveryStream
+  AmznConnectCtrDeliveryStream:
+    Properties:
+      DeliveryStreamType: DirectPut
+      AmazonOpenSearchServerlessDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        IndexName: ctr-logs
+        RetryOptions:
+          DurationInSeconds: 100
+        RoleARN:
+          Fn::GetAtt:
+          - FirehoseRole
+          - Arn
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN:
+            Fn::GetAtt:
+            - AmznConnectOutputBucket
+            - Arn
+          BufferingHints:
+            IntervalInSeconds: 60
+            SizeInMBs: 1
+          CompressionFormat: GZIP
+          Prefix: ctr-firehose-output/
+          RoleARN:
+            Fn::GetAtt:
+            - FirehoseRole
+            - Arn
+        CollectionEndpoint: 
+            Fn::GetAtt:
+            - Collection
+            - CollectionEndpoint
+    Type: AWS::KinesisFirehose::DeliveryStream
+  AmznConnectAgentDeliveryStream:
+    Properties:
+      DeliveryStreamType: KinesisStreamAsSource
+      AmazonOpenSearchServerlessDestinationConfiguration:
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        IndexName: agent-event-stream-v1
+        RetryOptions:
+          DurationInSeconds: 100
+        RoleARN:
+          Fn::GetAtt:
+          - FirehoseRole
+          - Arn
+        S3BackupMode: AllDocuments
+        S3Configuration:
+          BucketARN:
+            Fn::GetAtt:
+            - AmznConnectOutputBucket
+            - Arn
+          BufferingHints:
+            IntervalInSeconds: 60
+            SizeInMBs: 1
+          CompressionFormat: GZIP
+          Prefix: ctr-firehose-output/
+          RoleARN:
+            Fn::GetAtt:
+            - FirehoseRole
+            - Arn
+        CollectionEndpoint: 
+            Fn::GetAtt:
+            - Collection
+            - CollectionEndpoint
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN:
+          Fn::GetAtt:
+          - AgentKinesisStream
+          - Arn
+        RoleARN:
+          Fn::GetAtt:
+          - FirehoseRole
+          - Arn
+    Type: AWS::KinesisFirehose::DeliveryStream
+  AgentKinesisStream:
+    Properties:
+      ShardCount: 2
+    Type: AWS::Kinesis::Stream
+
+#######################
+# Batch Job
+#######################
+  BatchEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: execute every X mins
+      Name: BatchEvent
+      ScheduleExpression: 'rate(2 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt BatchEventLambda.Arn
+          Id: BatchEventTarget
+  BatchEventLambdaPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn:
+      - BatchEvent
+    Properties:
+      FunctionName: !GetAtt BatchEventLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt BatchEvent.Arn
+  BatchEventLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${AWS::StackName}-BatchEventLambda'
+      Handler: batchevent.handler
+      CodeUri: 
+        Bucket: !Ref SolutionSourceBucket
+        Key: source-code.zip
+      Runtime: nodejs16.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 900
+      Description: CaseBatchEvent
+      Role: !GetAtt SolutionLambdaIamRole.Arn
+      Environment:
+        Variables:
+          CollectionEndpoint: !GetAtt Collection.CollectionEndpoint
+          ConnectInstanceId: !Ref ConnectInstanceId
+          ACCOUNT_ID: !Ref 'AWS::AccountId'
+
+#######################
+# OUTPUT
+#######################
+Outputs:
+  IAMUser:
+    Value: !Ref IAMUSer
+  DashboardURL:
+    Value: !GetAtt Collection.DashboardEndpoint
+  CollectionARN:
+    Value: !GetAtt Collection.Arn
